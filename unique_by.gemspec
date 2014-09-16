@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.version       = UniqueBy::VERSION
   spec.authors       = ["Oded Niv"]
   spec.email         = ["oded.niv@gmail.com"]
-  spec.summary       = %q{TODO: Write a short summary. Required.}
-  spec.description   = %q{TODO: Write a longer description. Optional.}
+  spec.summary       = %q{Specify uniqueness group for an attribute.}
+  spec.description   = %q{Allows uniqueness of a record when sharding (specifying the shard ID as the group) or span accross tables (receipts).}
   spec.homepage      = ""
   spec.license       = "UNLICENSE"
 
