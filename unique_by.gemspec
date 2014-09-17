@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.email         = ["oded.niv@gmail.com"]
   spec.summary       = %q{Specify uniqueness group for an attribute.}
   spec.description   = %q{Allows uniqueness of a record when sharding (specifying the shard ID as the group) or span accross tables (receipts).}
-  spec.homepage      = ""
+  spec.homepage      = "https://github.com/odedniv/unique_by"
   spec.license       = "UNLICENSE"
 
   spec.files         = `git ls-files -z`.split("\x0")
@@ -19,6 +19,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_development_dependency "bundler", "~> 1.6"
-  spec.add_development_dependency "rake"
-  spec.add_development_dependency "rspec", "~> 3.1.0"
+  spec.add_development_dependency "rspec", "~> 3.1"
+  spec.add_development_dependency "rspec-its", "~> 1.0"
 end
