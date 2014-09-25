@@ -11,69 +11,65 @@ module UniqueBy
     #   #unique_id => unique_id
     #   ::find_by_unique_id(unique_id) => find_by_id(id_from(unique_id))
     #   ::find_by_unique_id!(unique_id) => find_by_id!(id_from(unique_id))
-    def unique_by(*group_block_names, total: nil, bits: nil, &group_block)
-      bits, total = Array(bits), Array(total)
+    def unique_by(**group_totals, &group_block)
+      raise ArgumentError, "must pass a group definition (Hash of name => total)" if group_totals.empty?
+      raise ArgumentError, "group definition must be a Hash of name => Fixnum, #{group_totals.inspect} given" unless group_totals.values.all? { |t| t.is_a?(Fixnum) }
 
-      raise ArgumentError, "must pass either total or bits to #unique_by" \
-        unless total.any? or bits.any?
-      raise ArgumentError, "both total (#{total.inspect}) and bits (#{bits.inspect}) passed to #unique_by" \
-        if total.any? and bits.any?
-      raise ArgumentError, "must pass a group generator block" \
-        unless group_block_names.any? or block_given?
-      raise ArgumentError, "amount of group names (#{group_block_names.length}) doesn't match total/bits (#{total.length + bits.length})" \
-        if (not block_given? and group_block_names.length != total.length + bits.length) or \
-           (block_given? and group_block_names.length > total.length + bits.length)
-
-      bits = total.map { |t| Math.log2(t).ceil } if bits.empty?
-      total = bits.map { |b| 2 ** b }
+      bits = Hash[group_totals.map { |k, t| [k, Math.log2(t).ceil] }]
+      totals = Hash[bits.map { |k, b| [k, 2 ** b] }] # real total
 
       pk = primary_key # converting to a local variable
 
-      define_singleton_method :"#{pk}_group_value_from" do |group|
-        Array(group).each_with_index.reduce(0) do |group_value, (g, i)|
-          raise TypeError, "group must implement #to_i, #{g.inspect} given" \
-            unless g.respond_to?(:to_i)
-          (group_value << bits[i]) + (g.to_i % total[i])
+      define_singleton_method :"#{pk}_group_value_from" do |**group|
+        raise ArgumentError, "unknown #{pk} group keys: #{group.keys - group_totals.keys}" if (group.keys - group_totals.keys).any?
+        raise ArgumentError, "missing #{pk} group keys: #{group_totals.keys - group.keys}" if (group_totals.keys - group.keys).any?
+        group_totals.keys.reduce(0) do |group_value, group_name|
+          g = group[group_name]
+          raise TypeError, "#{pk} group #{group_name} must not be nil" if g.nil?
+          raise TypeError, "#{pk} group #{group_name} must implement #to_i, #{g.inspect} given" unless g.respond_to?(:to_i)
+          (group_value << bits[group_name]) + (g.to_i % totals[group_name])
         end
       end
 
-      define_singleton_method :"unique_#{pk}_from" do |id, group|
-        (id.to_i << bits.inject(&:+)) + send(:"#{pk}_group_value_from", group)
+      define_singleton_method :"unique_#{pk}_from" do |id, **group|
+        break nil if id.nil?
+        raise TypeError, "#{pk} must implement #to_i, #{id.inspect} given" unless id.respond_to?(:to_i)
+        (id.to_i << bits.values.inject(&:+)) + send(:"#{pk}_group_value_from", **group)
       end
 
-      define_singleton_method :"#{pk}_from" do |id|
-        id.to_i >> bits.inject(&:+)
+      define_singleton_method :"#{pk}_from" do |unique_id|
+        break nil if unique_id.nil?
+        raise TypeError, "unique_#{pk} must implement #to_i, #{unique_id.inspect} given" unless unique_id.respond_to?(:to_i)
+        unique_id.to_i >> bits.values.inject(&:+)
       end
 
-      define_singleton_method :"#{pk}_group_from" do |id|
-        group = bits.reverse.zip(total.reverse).map do |b, t|
-          g = id & (t - 1)
-          id >>= b
-          g
-        end.reverse
-        group.length == 1 ? group[0] : group
+      define_singleton_method :"#{pk}_group_from" do |unique_id|
+        break nil if unique_id.nil?
+        raise TypeError, "unique_#{pk} must implement #to_i, #{unique_id.inspect} given" unless unique_id.respond_to?(:to_i)
+        Hash[group_totals.keys.reverse.map do |group_name|
+          g = unique_id & (totals[group_name] - 1)
+          unique_id >>= bits[group_name]
+          [group_name, g]
+        end.reverse]
       end
 
       define_method :"#{pk}_group" do
-        group = group_block_names.map { |group_block_name| send(group_block_name) }
-        group.push(*Array(instance_eval(&group_block))) if group_block
-        raise ArgumentError, "amount of groups (#{group.length}) doesn't match amount of bits/total (#{bits.length})" if group.length != bits.length
-        group.length == 1 ? group[0] : group
+        group_from_block = group_block ? instance_eval(&group_block) : {}
+        raise TypeError, "#{pk} group block must return a Hash with any of the following keys: #{group_totals.keys}, #{group_from_block.inspect} given" unless group_from_block.is_a?(Hash)
+        raise ArgumentError, "unknown #{pk} group passed to block: #{group_from_block.keys - group_totals.keys}" if (group_from_block.keys - group_totals.keys).any?
+        Hash[(group_totals.keys - group_from_block.keys).map { |group_name| [group_name, send(group_name)] }].merge(group_from_block)
       end
 
       define_method :"unique_#{pk}" do
-        primary_key = send(pk)
-        raise TypeError, "#{pk} must implement #to_i, #{primary_key.inspect} given" \
-          unless primary_key.respond_to?(:to_i)
-        self.class.send(:"unique_#{pk}_from", primary_key.to_i, send(:"#{pk}_group"))
+        self.class.send(:"unique_#{pk}_from", send(pk), **send(:"#{pk}_group"))
       end
 
-      define_singleton_method :"find_by_unique_#{pk}" do |id|
-        send(:"find_by_#{pk}", send(:"#{pk}_from", id))
+      define_singleton_method :"find_by_unique_#{pk}" do |unique_id|
+        send(:"find_by_#{pk}", send(:"#{pk}_from", unique_id))
       end
 
-      define_singleton_method :"find_by_unique_#{pk}!" do |id|
-        send(:"find_by_#{pk}!", send(:"#{pk}_from", id))
+      define_singleton_method :"find_by_unique_#{pk}!" do |unique_id|
+        send(:"find_by_#{pk}!", send(:"#{pk}_from", unique_id))
       end
     end
   end

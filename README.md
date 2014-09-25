@@ -40,7 +40,7 @@ You first need to specify a unique group in your model:
 #
 
 class MedicalBill < ActiveRecord::Base
-  unique_by :client_id, total: 50
+  unique_by client_id: 50 # total of 50 clients
 end
 ```
 
@@ -63,50 +63,41 @@ MedicalBill.find_by_unique_id(7874) # from DB shard for client_id = 2
 You can use the internal methods:
 
 ```ruby
-MedicalBill.unique_id_from(1, 123) # gives the unique_id from client_id, id
+MedicalBill.unique_id_from(123, client_id: 1) # gives the unique_id
 => 7873
 MedicalBill.id_from(7873) # gives the id
 => 123
 MedicalBill.id_group_from(7874) # gives the client_id
-=> 2
-```
-
-And use bits instead of total:
-
-```ruby
-class MedicalBill < ActiveRecord::Base
-  unique_by :client_id, bits: 6 # equivalent to total: 64
-end
+=> { client_id: 2 }
 ```
 
 You can specify multiple unique group attributes:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by :client_id, :client_part, total: [50, 5]
+  unique_by client_id: 50, client_part: 5 # total of 50 clients and 5 parts
 end
 ```
 
 ### Multiple tables example
 
-You can supply a block to give your own mechanism for determining the
-group:
+You can supply a block to give a custom mechanism for determining the group:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by(total: 2) { 1 }
+  unique_by(type: 2) { { type: 1 } }
 end
 class UtilityBill < ActiveRecord::Base
-  unique_by(total: 2) { 2 }
+  unique_by(type: 2) { { type: 2 } }
 end
 ```
 
 You can supply both group attributes and a block, and the block can also
-return an array:
+return more than one field:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique(:client_id, :client_part, total: [50, 5, 10, 20]) { [self.x * self.y, self.z / 2] }
+  unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) { { xy: self.x * self.y, halfz: self.z / 2 } }
 end
 ```
 
@@ -133,7 +124,7 @@ fix that:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by :client_id, total: 500
+  unique_by client_id: 500
   rebase_attr :unique_id, to: 32, readable: true
 end
 
