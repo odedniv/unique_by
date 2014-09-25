@@ -97,7 +97,9 @@ return more than one field:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) { { xy: self.x * self.y, halfz: self.z / 2 } }
+  unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) do
+    { xy: self.x * self.y, halfz: self.z / 2 }
+  end
 end
 ```
 
