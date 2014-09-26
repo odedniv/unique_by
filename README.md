@@ -127,14 +127,16 @@ fix that:
 ```ruby
 class MedicalBill < ActiveRecord::Base
   unique_by client_id: 500
-  rebase_attr :unique_id, to: 32, readable: true
+  rebase_attr :unique_id, to: 32, readable: true # digits and leters, without '0', 'o', '1' and 'l'
 end
 
-bill = MedicalBill.find(3528918) # from a DB shard for client_id = 1
+bill = MedicalBill.find(3528918) # from a DB shard for client_id = 78
 bill.unique_id
-=> "ywr3bxx"
-MedicalBill.find_by_unique_id(MedicalBill.decode_unique_id("ywr3bxx"))
-=> #<MedicalBill id: 3528918, client_id: 1>
+=> "ywr3b2e"
+bill.unique_id_without_rebase
+=> 1806806094
+MedicalBill.find_by_unique_id(MedicalBill.decode_unique_id("ywr3b2e"))
+=> #<MedicalBill id: 3528918, client_id: 78>
 ```
 
 ## Contributing
