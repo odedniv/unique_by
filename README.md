@@ -54,10 +54,6 @@ bill1.unique_id
 => 7873
 bill2.unique_id
 => 7874
-MedicalBill.find_by_unique_id(7873) # from DB shard for client_id = 1
-=> #<MedicalBill id: 123, client_id: 1>
-MedicalBill.find_by_unique_id(7874) # from DB shard for client_id = 2
-=> #<MedicalBill id: 123, client_id: 2>
 ```
 
 You can use the internal methods:
@@ -76,6 +72,21 @@ You can specify multiple unique group attributes:
 ```ruby
 class MedicalBill < ActiveRecord::Base
   unique_by client_id: 50, client_part: 5 # total of 50 clients and 5 parts
+end
+```
+
+It is recommended to create finder methods that will find records according to
+their id group, like so:
+
+```ruby
+class MedicallBill < ActiveRecord::Base
+  unique_by client_id: 50, client_part: 5 # total of 50 clients and 5 parts
+
+  def self.find_by_unique_id(unique_id)
+    withing_client_connection(id_group_from(unique_id)[:client_id]) do
+      find(id_from(unique_id))
+    end
+  end
 end
 ```
 
@@ -99,6 +110,21 @@ return more than one field:
 class MedicalBill < ActiveRecord::Base
   unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) do
     { xy: self.x * self.y, halfz: self.z / 2 }
+  end
+end
+```
+
+It is recommended to create finder methods that will find records according to
+their id group, like so:
+
+```ruby
+module Bill
+  module_function
+  def find_by_unique_id(unique_id)
+    case MedicalBill.id_group_from(unique_id)[:type]
+      when 1 then MedicalBill.find(MedicalBill.id_from(unique_id))
+      when 2 then UtilityBill.find(UtilityBill.id_from(unique_id))
+    end
   end
 end
 ```
@@ -135,8 +161,6 @@ bill.unique_id
 => "ywr3b2e"
 bill.unique_id_without_rebase
 => 1806806094
-MedicalBill.find_by_unique_id(MedicalBill.decode_unique_id("ywr3b2e"))
-=> #<MedicalBill id: 3528918, client_id: 78>
 ```
 
 ## Contributing

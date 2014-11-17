@@ -11,12 +11,6 @@ module BaseBill
     def primary_key
       :bill_id
     end
-
-    def find_by_bill_id(bill_id)
-    end
-
-    def find_by_bill_id!(bill_id)
-    end
   end
 end
 
@@ -29,17 +23,6 @@ class ShardedTablesBase < Struct.new(:bill_id, :client_id, :x)
 end
 
 describe UniqueBy::Generator do
-  shared_context "finder methods" do
-    specify "find_by_bill_id" do
-      expect(klass).to receive(:find_by_bill_id).with(id)
-      klass.find_by_unique_bill_id(unique_id)
-    end
-    specify "find_by_bill_id!" do
-      expect(klass).to receive(:find_by_bill_id!).with(id)
-      klass.find_by_unique_bill_id!(unique_id)
-    end
-  end
-
   context "shards" do
     let(:klass) do
       Class.new(Struct.new(:bill_id, :client_id)) do
@@ -67,8 +50,6 @@ describe UniqueBy::Generator do
           specify { expect(klass.bill_id_from(nil)).to be_nil }
           specify { expect(klass.bill_id_group_from(nil)).to be_nil }
         end
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
@@ -91,8 +72,6 @@ describe UniqueBy::Generator do
         specify { expect(klass.unique_bill_id_from(431, client_id: 7)).to eq(unique_id) }
         specify { expect(klass.bill_id_from(unique_id)).to eq(431) }
         specify { expect(klass.bill_id_group_from(unique_id)).to eq(client_id: 7 % 16) }
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
@@ -128,8 +107,6 @@ describe UniqueBy::Generator do
         specify { expect(medical_klass.unique_bill_id_from(839, type: 10)).to eq(unique_id) }
         specify { expect(medical_klass.bill_id_from(unique_id)).to eq(839) }
         specify { expect(medical_klass.bill_id_group_from(unique_id)).to eq(type: 10 % 2) }
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
@@ -148,8 +125,6 @@ describe UniqueBy::Generator do
         specify { expect(utility_klass.unique_bill_id_from(839, type: 11)).to eq(unique_id) }
         specify { expect(utility_klass.bill_id_from(unique_id)).to eq(839) }
         specify { expect(utility_klass.bill_id_group_from(unique_id)).to eq(type: 11 % 2) }
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
@@ -201,8 +176,6 @@ describe UniqueBy::Generator do
         specify { expect(medical_klass.unique_bill_id_from(9428, client_id: 5, x: 53, type: 10, y: 20)).to eq(unique_id) }
         specify { expect(medical_klass.bill_id_from(unique_id)).to eq(9428) }
         specify { expect(medical_klass.bill_id_group_from(unique_id)).to eq(tempered_group) }
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
@@ -224,8 +197,6 @@ describe UniqueBy::Generator do
         specify { expect(utility_klass.unique_bill_id_from(9428, client_id: 8, x: 853, type: 11, y: 40)).to eq(unique_id) }
         specify { expect(utility_klass.bill_id_from(unique_id)).to eq(9428) }
         specify { expect(utility_klass.bill_id_group_from(unique_id)).to eq(tempered_group) }
-
-        include_context "finder methods"
       end
 
       describe "instance methods" do
