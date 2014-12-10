@@ -23,6 +23,31 @@ class ShardedTablesBase < Struct.new(:bill_id, :client_id, :x)
 end
 
 describe UniqueBy::Generator do
+  shared_examples_for "unique by" do |id:, group:, tempered_group:, group_value:, unique_id:|
+    describe "class methods" do
+      specify { expect(klass.bill_id_group_value_from(group)).to eq(group_value) }
+      specify { expect(klass.unique_bill_id_from(id, **group)).to eq(unique_id) }
+      specify { expect(klass.bill_id_from(unique_id)).to eq(id) }
+      specify { expect(klass.bill_id_group_from(unique_id)).to eq(tempered_group) }
+
+      context "nil id" do
+        specify { expect(klass.unique_bill_id_from(nil, client_id: 2)).to be_nil }
+        specify { expect(klass.bill_id_from(nil)).to be_nil }
+        specify { expect(klass.bill_id_group_from(nil)).to be_nil }
+      end
+    end
+
+    describe "instance methods" do
+      its(:bill_id_group) { should == group }
+      its(:unique_bill_id) { should == unique_id }
+
+      context "nil id" do
+        before { bill.bill_id = nil }
+        its(:unique_bill_id) { should be_nil }
+      end
+    end
+  end
+
   context "shards" do
     let(:klass) do
       Class.new(Struct.new(:bill_id, :client_id)) do
@@ -33,51 +58,29 @@ describe UniqueBy::Generator do
 
     let(:bill1) { klass.new(431, 2) }
     let(:bill2) { klass.new(431, 7) }
-    let(:id) { 431 }
 
     context "bill1" do
-      let(:unique_id) { (431 << 4) + (2 % 16) }
-      subject { bill1 }
+      subject(:bill) { bill1 }
 
-      describe "class methods" do
-        specify { expect(klass.bill_id_group_value_from(client_id: 2)).to eq(2 % 16) }
-        specify { expect(klass.unique_bill_id_from(431, client_id: 2)).to eq(unique_id) }
-        specify { expect(klass.bill_id_from(unique_id)).to eq(431) }
-        specify { expect(klass.bill_id_group_from(unique_id)).to eq(client_id: 2 % 16) }
-
-        context "nil id" do
-          specify { expect(klass.unique_bill_id_from(nil, client_id: 2)).to be_nil }
-          specify { expect(klass.bill_id_from(nil)).to be_nil }
-          specify { expect(klass.bill_id_group_from(nil)).to be_nil }
-        end
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { client_id: 2 } }
-        its(:unique_bill_id) { should == unique_id }
-
-        context "nil id" do
-          before { bill1.bill_id = nil }
-          its(:unique_bill_id) { should be_nil }
-        end
-      end
+      it_behaves_like "unique by", {
+        id: 431,
+        group: { client_id: 2 },
+        tempered_group: { client_id: 2 % 10 },
+        group_value: group_value = 2 % 10,
+        unique_id: (431 * 10) + group_value,
+      }
     end
 
     context "bill2" do
-      let(:unique_id) { (431 << 4) + (7 % 16) }
-      subject { bill2 }
+      subject(:bill) { bill2 }
 
-      describe "class methods" do
-        specify { expect(klass.bill_id_group_value_from(client_id: 7)).to eq(7 % 16) }
-        specify { expect(klass.unique_bill_id_from(431, client_id: 7)).to eq(unique_id) }
-        specify { expect(klass.bill_id_from(unique_id)).to eq(431) }
-        specify { expect(klass.bill_id_group_from(unique_id)).to eq(client_id: 7 % 16) }
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { client_id: 7 } }
-        its(:unique_bill_id) { should == unique_id }
-      end
+      it_behaves_like "unique by", {
+        id: 431,
+        group: { client_id: 7 },
+        tempered_group: { client_id: 7 % 10 },
+        group_value: group_value = 7 % 10,
+        unique_id: (431 * 10) + group_value,
+      }
     end
   end
 
@@ -95,49 +98,38 @@ describe UniqueBy::Generator do
 
     let(:medical_bill) { medical_klass.new(839) }
     let(:utility_bill) { utility_klass.new(839) }
-    let(:id) { 839 }
 
     context "medical bill" do
       let(:klass) { medical_klass }
-      let(:unique_id) { (839 << 1) + (10 % 2) }
-      subject { medical_bill }
+      subject(:bill) { medical_bill }
 
-      describe "class methods" do
-        specify { expect(medical_klass.bill_id_group_value_from(type: 10)).to eq(10 % 2) }
-        specify { expect(medical_klass.unique_bill_id_from(839, type: 10)).to eq(unique_id) }
-        specify { expect(medical_klass.bill_id_from(unique_id)).to eq(839) }
-        specify { expect(medical_klass.bill_id_group_from(unique_id)).to eq(type: 10 % 2) }
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { type: 10 } }
-        its(:unique_bill_id) { should == unique_id }
-      end
+      it_behaves_like "unique by", {
+        id: 839,
+        group: { type: 10 },
+        tempered_group: { type: 10 % 2 },
+        group_value: group_value = (10 % 2),
+        unique_id: (839 * 2) + group_value,
+      }
     end
 
     context "utility bill" do
       let(:klass) { utility_klass }
-      let(:unique_id) { (839 << 1) + (11 % 2) }
-      subject { utility_bill }
+      subject(:bill) { utility_bill }
 
-      describe "class methods" do
-        specify { expect(utility_klass.bill_id_group_value_from(type: 11)).to eq(11 % 2) }
-        specify { expect(utility_klass.unique_bill_id_from(839, type: 11)).to eq(unique_id) }
-        specify { expect(utility_klass.bill_id_from(unique_id)).to eq(839) }
-        specify { expect(utility_klass.bill_id_group_from(unique_id)).to eq(type: 11 % 2) }
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { type: 11 } }
-        its(:unique_bill_id) { should == unique_id }
-      end
+      it_behaves_like "unique by", {
+        id: 839,
+        group: { type: 11 },
+        tempered_group: { type: 11 % 2 },
+        group_value: group_value = (11 % 2),
+        unique_id: (839 * 2) + group_value,
+      }
     end
   end
 
   context "sharded tables" do
     let(:medical_klass) do
       Class.new(ShardedTablesBase) do
-        unique_by(client_id: 10, x: 200, type: 2, y: 20) { { type: 10, y: y } }
+        unique_by(client_id: 10, x: 200, type: 2, y: 30) { { type: 10, y: y } }
         def x
           53
         end
@@ -149,7 +141,7 @@ describe UniqueBy::Generator do
 
     let(:utility_klass) do
       Class.new(ShardedTablesBase) do
-        unique_by(client_id: 2**4, x: 2**8, type: 2**1, y: 2**5) { { type: 11, y: y } }
+        unique_by(client_id: 10, x: 200, type: 2, y: 30) { { type: 11, y: y } }
         def x
           853
         end
@@ -161,49 +153,50 @@ describe UniqueBy::Generator do
 
     let(:medical_bill) { medical_klass.new(9428, 5, 128) }
     let(:utility_bill) { utility_klass.new(9428, 8, 255) }
-    let(:id) { 9428 }
 
     context "medical bill" do
       let(:klass) { medical_klass }
-      subject { medical_bill }
+      subject(:bill) { medical_bill }
 
-      let(:tempered_group) { { client_id: 5 % 16, x: 53 % 256, type: 10 % 2, y: 20 % 32 } }
-      let(:group_value) { ((5 % 16) << 14) + ((53 % 256) << 6) + ((10 % 2) << 5) + (20 % 32) }
-      let(:unique_id) { (9428 << 18) + group_value }
-
-      describe "class methods" do
-        specify { expect(medical_klass.bill_id_group_value_from(client_id: 5, x: 53, type: 10, y: 20)).to eq(group_value) }
-        specify { expect(medical_klass.unique_bill_id_from(9428, client_id: 5, x: 53, type: 10, y: 20)).to eq(unique_id) }
-        specify { expect(medical_klass.bill_id_from(unique_id)).to eq(9428) }
-        specify { expect(medical_klass.bill_id_group_from(unique_id)).to eq(tempered_group) }
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { client_id: 5, x: 53, type: 10, y: 20 } }
-        its(:unique_bill_id) { should == unique_id }
-      end
+      it_behaves_like "unique by", {
+        id: 9428,
+        group: { client_id: 5, x: 53, type: 10, y: 20 },
+        tempered_group: { client_id: 5 % 10, x: 53 % 200, type: 10 % 2, y: 20 % 30 },
+        group_value: group_value = ((5 % 10) * 200*2*30) + ((53 % 200) * 2*30) + ((10 % 2) * 30) + (20 % 30),
+        unique_id: (9428 * 10*200*2*30) + group_value,
+      }
     end
 
     context "utility bill" do
       let(:klass) { utility_klass }
-      subject { utility_bill }
+      subject(:bill) { utility_bill }
 
-      let(:tempered_group) { { client_id: 8 % 16, x: 853 % 256, type: 11 % 2, y: 40 % 32 } }
-      let(:group_value) { ((8 % 16) << 14) + ((853 % 256) << 6) + ((11 % 2) << 5) + (40 % 32) }
-      let(:unique_id) { (9428 << 18) + group_value }
+      it_behaves_like "unique by", {
+        id: 9428,
+        group: { client_id: 8, x: 853, type: 11, y: 40 },
+        tempered_group: { client_id: 8 % 10, x: 853 % 200, type: 11 % 2, y: 40 % 30 },
+        group_value: group_value = ((8 % 10) * 200*2*30) + ((853 % 200) * 2*30) + ((11 % 2) * 30) + (40 % 30),
+        unique_id: (9428 * 10*200*2*30) + group_value,
+      }
+    end
+  end
 
-      describe "class methods" do
-        specify { expect(utility_klass.bill_id_group_value_from(client_id: 8, x: 853, type: 11, y: 40)).to eq(group_value) }
-        specify { expect(utility_klass.unique_bill_id_from(9428, client_id: 8, x: 853, type: 11, y: 40)).to eq(unique_id) }
-        specify { expect(utility_klass.bill_id_from(unique_id)).to eq(9428) }
-        specify { expect(utility_klass.bill_id_group_from(unique_id)).to eq(tempered_group) }
-      end
-
-      describe "instance methods" do
-        its(:bill_id_group) { should == { client_id: 8, x: 853, type: 11, y: 40 } }
-        its(:unique_bill_id) { should == unique_id }
+  context "override primary key" do
+    let(:klass) do
+      Class.new(Struct.new(:bill_id, :client_id)) do
+        extend UniqueBy::Generator
+        unique_by(client_id: 10, primary_key: :bill_id)
       end
     end
+    subject(:bill) { klass.new(431, 2) }
+
+    it_behaves_like "unique by", {
+      id: 431,
+      group: { client_id: 2 },
+      tempered_group: { client_id: 2 % 10 },
+      group_value: group_value = 2 % 10,
+      unique_id: (431 * 10) + group_value,
+    }
   end
 
   context "errors" do

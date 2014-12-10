@@ -13,13 +13,10 @@ module UniqueBy
     #   ::find_by_unique_id(unique_id) => find_by_id(id_from(unique_id))
     #   ::find_by_unique_id!(unique_id) => find_by_id!(id_from(unique_id))
     def unique_by(**group_totals, &group_block)
+      pk = group_totals.delete(:primary_key) || primary_key # converting to a local variable
+
       raise ArgumentError, "must pass a group definition (Hash of name => total)" if group_totals.empty?
       raise ArgumentError, "group definition must be a Hash of name => Fixnum, #{group_totals.inspect} given" unless group_totals.values.all? { |t| t.is_a?(Fixnum) }
-
-      bits = Hash[group_totals.map { |k, t| [k, Math.log2(t).ceil] }]
-      totals = Hash[bits.map { |k, b| [k, 2 ** b] }] # real total
-
-      pk = primary_key # converting to a local variable
 
       generate_singleton_methods do
         define_method :"#{pk}_group_value_from" do |**group|
@@ -29,28 +26,28 @@ module UniqueBy
             g = group[group_name]
             raise TypeError, "#{pk} group #{group_name} must not be nil" if g.nil?
             raise TypeError, "#{pk} group #{group_name} must implement #to_i, #{g.inspect} given" unless g.respond_to?(:to_i)
-            (group_value << bits[group_name]) + (g.to_i % totals[group_name])
+            (group_value * group_totals[group_name]) + (g.to_i % group_totals[group_name])
           end
         end
 
         define_method :"unique_#{pk}_from" do |id, **group|
           break nil if id.nil?
           raise TypeError, "#{pk} must implement #to_i, #{id.inspect} given" unless id.respond_to?(:to_i)
-          (id.to_i << bits.values.inject(&:+)) + send(:"#{pk}_group_value_from", **group)
+          (id.to_i * group_totals.values.inject(&:*)) + send(:"#{pk}_group_value_from", **group)
         end
 
         define_method :"#{pk}_from" do |unique_id|
           break nil if unique_id.nil?
           raise TypeError, "unique_#{pk} must implement #to_i, #{unique_id.inspect} given" unless unique_id.respond_to?(:to_i)
-          unique_id.to_i >> bits.values.inject(&:+)
+          unique_id.to_i / group_totals.values.inject(&:*)
         end
 
         define_method :"#{pk}_group_from" do |unique_id|
           break nil if unique_id.nil?
           raise TypeError, "unique_#{pk} must implement #to_i, #{unique_id.inspect} given" unless unique_id.respond_to?(:to_i)
           Hash[group_totals.keys.reverse.map do |group_name|
-            g = unique_id & (totals[group_name] - 1)
-            unique_id >>= bits[group_name]
+            g = unique_id % group_totals[group_name]
+            unique_id /= group_totals[group_name]
             [group_name, g]
           end.reverse]
         end
