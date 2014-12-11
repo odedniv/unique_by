@@ -56,7 +56,7 @@ bill2.unique_id
 => 7874
 ```
 
-You can use the internal methods:
+You can use the singleton methods:
 
 ```ruby
 MedicalBill.unique_id_from(123, client_id: 1) # gives the unique_id
@@ -96,10 +96,10 @@ You can supply a block to give a custom mechanism for determining the group:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by(type: 2) { { type: 0 } }
+  unique_by(type_index: 2) { { type_index: 0 } }
 end
 class UtilityBill < ActiveRecord::Base
-  unique_by(type: 2) { { type: 1 } }
+  unique_by(type_index: 2) { { type_index: 1 } }
 end
 ```
 
@@ -107,39 +107,28 @@ Groups can also be served as a singleton method:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by type: 2
-  def self.type
+  unique_by type_index: 2
+  def self.type_index
     0
   end
 end
 class UtilityBill < ActiveRecord::Base
-  unique_by type: 2
-  def self.type
+  unique_by type_index: 2
+  def self.type_index
     1
   end
 end
 ```
 
 In either case, if all the groups are specified as singleton methods or served
-within the block WITHOUT using the instance (`self`), you can use the internal
-(singleton) methods without explicitly specifying the groups for this class:
+within the block WITHOUT using the instance (`self`), you can use the singleton
+methods without explicitly specifying the groups for this class:
 
 ```ruby
 MedicalBill.unique_id_from(123)
 => 247
 UtilityBill.unique_id_from(123)
 => 246
-```
-
-You can supply both group attributes and a block, and the block can also
-return more than one field:
-
-```ruby
-class MedicalBill < ActiveRecord::Base
-  unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) do
-    { xy: self.x * self.y, halfz: self.z / 2 }
-  end
-end
 ```
 
 It is recommended to create finder methods that will find records according to
@@ -149,10 +138,21 @@ their id group, like so:
 module Bill
   module_function
   def find_by_unique_id(unique_id)
-    case MedicalBill.id_group_from(unique_id)[:type]
-      when 0 then MedicalBill.find(MedicalBill.id_from(unique_id))
-      when 1 then UtilityBill.find(UtilityBill.id_from(unique_id))
+    case MedicalBill.id_group_from(unique_id)[:type_index]
+      when MedicalBill.type_index then MedicalBill.find(MedicalBill.id_from(unique_id))
+      when UtilityBill.type_index then UtilityBill.find(UtilityBill.id_from(unique_id))
     end
+  end
+end
+```
+
+You can supply both group attributes and a block, and the block can also
+return more than one field:
+
+```ruby
+class MedicalBill < ActiveRecord::Base
+  unique_by(client_id: 50, client_part: 5, xy: 10, halfz: 20) do
+    { xy: self.x * self.y, halfz: self.z / 2 }
   end
 end
 ```
