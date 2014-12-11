@@ -199,6 +199,49 @@ describe UniqueBy::Generator do
     }
   end
 
+  context "constant groups" do
+    let(:instance) { klass.new(49, 5) }
+
+    shared_examples_for "unique by" do
+      describe "class methods" do
+        subject { klass }
+        its(:id_group_value_from) { should == 5 }
+        specify { expect(klass.unique_id_from(49)).to eq(495) }
+      end
+
+      describe "instance methods" do
+        subject { instance }
+        its(:id_group) { should == { type: 5 } }
+        its(:unique_id) { should == 495 }
+      end
+    end
+
+    context "in static method" do
+      let(:klass) do
+        Class.new(Struct.new(:id, :type)) do
+          extend UniqueBy::Generator
+          unique_by(type: 10, primary_key: :id)
+          def self.type
+            5
+          end
+        end
+      end
+
+      it_behaves_like "unique by"
+    end
+
+    context "in block" do
+      let(:klass) do
+        Class.new(Struct.new(:id, :type)) do
+          extend UniqueBy::Generator
+          unique_by(type: 10, primary_key: :id) { { type: 5 } }
+        end
+      end
+
+      it_behaves_like "unique by"
+    end
+  end
+
   context "errors" do
     describe "#unique_by" do
       let(:klass) do
@@ -221,7 +264,7 @@ describe UniqueBy::Generator do
 
       specify { expect { klass.bill_id_group_value_from(x: 2) }.to raise_error(ArgumentError, "unknown bill_id group keys: [:x]") }
       specify { expect { klass.bill_id_group_value_from(client_id: 5, x: 2) }.to raise_error(ArgumentError, "unknown bill_id group keys: [:x]") }
-      specify { expect { klass.bill_id_group_value_from() }.to raise_error(ArgumentError, "missing bill_id group keys: [:client_id]") }
+      specify { expect { klass.bill_id_group_value_from() }.to raise_error(NoMethodError, /^undefined method `client_id' for/) }
       specify { expect { klass.bill_id_group_value_from(client_id: nil) }.to raise_error(TypeError, "bill_id group client_id must not be nil") }
       specify { expect { klass.bill_id_group_value_from(client_id: :a) }.to raise_error(TypeError, "bill_id group client_id must implement #to_i, :a given") }
       specify { expect { klass.unique_bill_id_from(431, client_id: nil) }.to raise_error(TypeError, "bill_id group client_id must not be nil") }

@@ -96,11 +96,39 @@ You can supply a block to give a custom mechanism for determining the group:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by(type: 2) { { type: 1 } }
+  unique_by(type: 2) { { type: 0 } }
 end
 class UtilityBill < ActiveRecord::Base
-  unique_by(type: 2) { { type: 2 } }
+  unique_by(type: 2) { { type: 1 } }
 end
+```
+
+Groups can also be served as a singleton method:
+
+```ruby
+class MedicalBill < ActiveRecord::Base
+  unique_by type: 2
+  def self.type
+    0
+  end
+end
+class UtilityBill < ActiveRecord::Base
+  unique_by type: 2
+  def self.type
+    1
+  end
+end
+```
+
+In either case, if all the groups are specified as singleton methods or served
+within the block WITHOUT using the instance (`self`), you can use the internal
+(singleton) methods without explicitly specifying the groups for this class:
+
+```ruby
+MedicalBill.unique_id_from(123)
+=> 247
+UtilityBill.unique_id_from(123)
+=> 246
 ```
 
 You can supply both group attributes and a block, and the block can also
@@ -122,8 +150,8 @@ module Bill
   module_function
   def find_by_unique_id(unique_id)
     case MedicalBill.id_group_from(unique_id)[:type]
-      when 1 then MedicalBill.find(MedicalBill.id_from(unique_id))
-      when 2 then UtilityBill.find(UtilityBill.id_from(unique_id))
+      when 0 then MedicalBill.find(MedicalBill.id_from(unique_id))
+      when 1 then UtilityBill.find(UtilityBill.id_from(unique_id))
     end
   end
 end
@@ -138,6 +166,10 @@ you want the above methods in another class you can extend it:
 class MyClass
   extend UniqueBy::Generator
 
+  unique_by ..., primary_key: :id
+  #
+  # OR
+  #
   def self.primary_key
     :id # or 'id'
   end
@@ -152,7 +184,7 @@ fix that:
 
 ```ruby
 class MedicalBill < ActiveRecord::Base
-  unique_by client_id: 500
+  unique_by client_id: 32**2 # two base32 letters
   rebase_attr :unique_id, to: 32, readable: true # digits and leters, without '0', 'o', '1' and 'l'
 end
 
